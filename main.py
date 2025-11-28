@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import requests
 import pandas as pd
+from bs4 import BeautifulSoup
 from io import StringIO
 import os
 
@@ -11,50 +12,80 @@ def fetch_histock():
     headers = {"User-Agent": "Mozilla/5.0"}
     resp = requests.get(url, headers=headers)
     resp.encoding = 'utf-8'
-    html = StringIO(resp.text)
-    tables = pd.read_html(html)
-    df = tables[0]
-    df = df[df["備註"].str.contains("申購中", na=False)]
-    df["報酬率(%)"] = df["報酬率(%)"].str.replace("%", "", regex=False).astype(float)
-    df["獲利"] = df["獲利"].astype(float)
+
+    soup = BeautifulSoup(resp.text, "lxml")
+
+    # 找到包含「申購中」的 table
+    tables = soup.find_all("table")
+    target_table = None
+    for table in tables:
+        if "申購中" in table.get_text():
+            target_table = table
+            break
+
+    if target_table is None:
+        print("找不到包含申購中資料的 table")
+        return pd.DataFrame()
+
+    # 用 StringIO 包裝，避免 FutureWarning
+    df = pd.read_html(StringIO(str(target_table)))[0]
+
+    # 清理欄位名稱
+    df.columns = df.columns.str.strip()
+
+    # 過濾備註為申購中
+    if "備註" not in df.columns:
+        print("表格中沒有備註欄位")
+        return pd.DataFrame()
+    df = df[df["備註"].str.strip().str.contains("申購中", na=False)].copy()
+
+    # 安全轉換欄位
+    for col in ["報酬率(%)", "獲利"]:
+        if col in df.columns:
+            if col == "報酬率(%)":
+                df.loc[:, col] = pd.to_numeric(df[col].str.replace("%","",regex=False), errors="coerce")
+            else:
+                df.loc[:, col] = pd.to_numeric(df[col], errors="coerce")
+        else:
+            print(f"表格缺少欄位: {col}")
+            return pd.DataFrame()
+
     return df
 
 def filter_target(df):
     return df[(df["報酬率(%)"] > 20) | (df["獲利"] > 10000)]
 
 def send_line(msg):
+    if not LINE_TOKEN:
+        print("LINE_TOKEN 未設定，無法發送 LINE 訊息")
+        return
     url = "https://notify-api.line.me/api/notify"
     headers = {"Authorization": "Bearer " + LINE_TOKEN}
     data = {"message": msg}
     requests.post(url, headers=headers, data=data)
 
 def process():
-    baseline_file = "baseline.csv"
-    prev_df = pd.read_csv(baseline_file) if os.path.exists(baseline_file) else None
     df = fetch_histock()
+    if df.empty:
+        print("沒有抓到任何資料")
+        return
+
     df_target = filter_target(df)
-    df_target.to_csv(baseline_file, index=False)
 
-    if prev_df is None:
-        print("首次執行，建立 baseline，不發送通知。")
+    if df_target.empty:
+        print("今日沒有符合條件的股票")
         return
 
-    merged = pd.merge(df_target, prev_df, how="outer", indicator=True)
-    new_items = merged[merged["_merge"] == "left_only"]
-
-    if len(new_items) == 0:
-        print("今日無新增高報酬標的")
-        return
-
-    # 字串格式輸出
+    # 單行字串格式
     msg_items = [
         f"{row['股票代號 名稱']}(投報率:{row['報酬率(%)']}% 獲利:{row['獲利']}元)"
-        for _, row in new_items.iterrows()
+        for _, row in df_target.iterrows()
     ]
-    msg = "📢 新增符合條件申購標的：\n" + "、".join(msg_items)
+    msg = "📢 今日符合條件申購標的：\n" + "、".join(msg_items)
 
     print(msg)
     send_line(msg)
 
 if __name__ == "__main__":
+    print("=== 執行最新 main.py ===")
     process()
