@@ -3,22 +3,17 @@ name: Run Python Daily + LINE Notify
 on:
   schedule:
     - cron: "59 7 * * *"  # 每天 15:59 台灣時間
-  workflow_dispatch:       # 手動觸發
+  workflow_dispatch:
 
 jobs:
   run-script:
     runs-on: ubuntu-latest
     env:
       LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-      EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
-      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
-      EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -27,29 +22,8 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install requests pandas beautifulsoup4 lxml
+          pip install requests pandas lxml
 
-      - name: Run main.py and capture output
-        id: run_script
+      - name: Run main.py
         run: |
-          output=$(python main.py 2>&1)
-          echo "script_output=$output" >> $GITHUB_OUTPUT
-
-      - name: Commit and Push baseline.csv
-        run: |
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git add baseline.csv
-          git commit -m "Update baseline" || echo "No changes"
-          git push origin main
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Send LINE Notify with output
-        env:
-          LINE_TOKEN: ${{ secrets.LINE_TOKEN }}
-          SCRIPT_OUTPUT: ${{ steps.run_script.outputs.script_output }}
-        run: |
-          curl -X POST https://notify-api.line.me/api/notify \
-          -H "Authorization: Bearer $LINE_TOKEN" \
-          -F "message=main.py 執行結果：$SCRIPT_OUTPUT"
+          python main.py
