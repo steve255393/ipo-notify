@@ -1,3 +1,33 @@
+# -*- coding: utf-8 -*-
+import requests
+import pandas as pd
+from io import StringIO
+import os
+
+LINE_TOKEN = os.environ.get("LINE_TOKEN")
+
+def fetch_histock():
+    url = "https://histock.tw/stock/public.aspx"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    resp = requests.get(url, headers=headers)
+    resp.encoding = 'utf-8'
+    html = StringIO(resp.text)
+    tables = pd.read_html(html)
+    df = tables[0]
+    df = df[df["備註"].str.contains("申購中", na=False)]
+    df["報酬率(%)"] = df["報酬率(%)"].str.replace("%", "", regex=False).astype(float)
+    df["獲利"] = df["獲利"].astype(float)
+    return df
+
+def filter_target(df):
+    return df[(df["報酬率(%)"] > 20) | (df["獲利"] > 10000)]
+
+def send_line(msg):
+    url = "https://notify-api.line.me/api/notify"
+    headers = {"Authorization": "Bearer " + LINE_TOKEN}
+    data = {"message": msg}
+    requests.post(url, headers=headers, data=data)
+
 def process():
     baseline_file = "baseline.csv"
     prev_df = pd.read_csv(baseline_file) if os.path.exists(baseline_file) else None
@@ -16,13 +46,15 @@ def process():
         print("今日無新增高報酬標的")
         return
 
-    # 用單行字串表示股票資訊
-    msg_items = []
-    for _, row in new_items.iterrows():
-        msg_items.append(f"{row['股票代號 名稱']}(投報率:{row['報酬率(%)']}% 獲利:{row['獲利']}元)")
-
+    # 字串格式輸出
+    msg_items = [
+        f"{row['股票代號 名稱']}(投報率:{row['報酬率(%)']}% 獲利:{row['獲利']}元)"
+        for _, row in new_items.iterrows()
+    ]
     msg = "📢 新增符合條件申購標的：\n" + "、".join(msg_items)
 
     print(msg)
     send_line(msg)
-    send_email("新增高報酬申購標的通知", msg)
+
+if __name__ == "__main__":
+    process()
