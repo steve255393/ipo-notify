@@ -5,7 +5,11 @@ from bs4 import BeautifulSoup
 from io import StringIO
 import os
 
-LINE_TOKEN = os.environ.get("LINE_TOKEN")
+# 你的 LINE Messaging API Channel Access Token
+CHANNEL_ACCESS_TOKEN = os.environ.get("CHANNEL_ACCESS_TOKEN")
+
+# 接收訊息的使用者或群組 ID
+LINE_USER_ID = os.environ.get("LINE_USER_ID")  # 可以是自己的 userId 或群組Id
 
 def fetch_histock():
     url = "https://histock.tw/stock/public.aspx"
@@ -27,10 +31,7 @@ def fetch_histock():
         print("找不到包含申購中資料的 table")
         return pd.DataFrame()
 
-    # 用 StringIO 包裝，避免 FutureWarning
     df = pd.read_html(StringIO(str(target_table)))[0]
-
-    # 清理欄位名稱
     df.columns = df.columns.str.strip()
 
     # 過濾備註為申購中
@@ -55,14 +56,26 @@ def fetch_histock():
 def filter_target(df):
     return df[(df["報酬率(%)"] > 20) | (df["獲利"] > 10000)]
 
-def send_line(msg):
-    if not LINE_TOKEN:
-        print("LINE_TOKEN 未設定，無法發送 LINE 訊息")
+def send_line_message(user_id, message):
+    if not CHANNEL_ACCESS_TOKEN:
+        print("CHANNEL_ACCESS_TOKEN 未設定，無法發送 LINE 訊息")
         return
-    url = "https://notify-api.line.me/api/notify"
-    headers = {"Authorization": "Bearer " + LINE_TOKEN}
-    data = {"message": msg}
-    requests.post(url, headers=headers, data=data)
+    if not user_id:
+        print("LINE_USER_ID 未設定，無法發送 LINE 訊息")
+        return
+
+    url = "https://api.line.me/v2/bot/message/push"
+    headers = {
+        "Authorization": f"Bearer {CHANNEL_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "to": user_id,
+        "messages": [{"type": "text", "text": message}]
+    }
+    resp = requests.post(url, headers=headers, json=data)
+    if resp.status_code != 200:
+        print(f"LINE 訊息發送失敗: {resp.status_code} {resp.text}")
 
 def process():
     df = fetch_histock()
@@ -71,7 +84,6 @@ def process():
         return
 
     df_target = filter_target(df)
-
     if df_target.empty:
         print("今日沒有符合條件的股票")
         return
@@ -84,7 +96,7 @@ def process():
     msg = "📢 今日符合條件申購標的：\n" + "、".join(msg_items)
 
     print(msg)
-    send_line(msg)
+    send_line_message(LINE_USER_ID, msg)
 
 if __name__ == "__main__":
     print("=== 執行最新 main.py ===")
