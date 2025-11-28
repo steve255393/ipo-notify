@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 import requests
 import pandas as pd
-from bs4 import BeautifulSoup
 from io import StringIO
 import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+# 環境變數
 LINE_TOKEN = os.environ.get("LINE_TOKEN")
 EMAIL_SENDER = os.environ.get("EMAIL_SENDER")
 EMAIL_PASSWORD = os.environ.get("EMAIL_PASSWORD")
