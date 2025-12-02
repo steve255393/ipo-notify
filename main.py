@@ -43,13 +43,12 @@ def fetch_histock():
     # 安全轉換欄位
     for col in ["報酬率(%)", "獲利"]:
         if col in df.columns:
-            if col == "報酬率(%)":
-                df.loc[:, col] = pd.to_numeric(df[col].str.replace("%","",regex=False), errors="coerce")
-            else:
-                df.loc[:, col] = pd.to_numeric(df[col], errors="coerce")
+            df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.replace("--", "", regex=False).str.strip()
+            df[col] = pd.to_numeric(df[col], errors="coerce")
         else:
             print(f"表格缺少欄位: {col}")
             return pd.DataFrame()
+
 
     return df
 
@@ -101,3 +100,4 @@ def process():
 if __name__ == "__main__":
     print("=== 執行最新 main.py ===")
     process()
+
