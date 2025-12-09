@@ -2,7 +2,7 @@ name: Run Python Daily + LINE Messaging API
 
 on:
   schedule:
-    - cron: "0 4 * * *"  # 每天 UTC 07:00 執行
+    - cron: "30 0 * * *"  # 每天 UTC 0:30 → 台灣時間 08:30
   workflow_dispatch:  # 可手動觸發
 
 jobs:
