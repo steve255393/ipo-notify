@@ -135,7 +135,7 @@ def process():
                 f"{row['股票代號 名稱']}(投報率:{row['報酬率(%)']}% 獲利:{row['獲利']}元)"
                 for _, row in df_target.iterrows()
             ]
-            msg1 = "📢 今日符合條件申購標的：\n" + "、".join(msg_items)
+            msg1 = "📢 今日符合條件申購標的：\n" + "\n".join(msg_items)
 
     print(msg1)
 
@@ -157,3 +157,4 @@ def process():
 if __name__ == "__main__":
     print("=== 執行最新 main.py ===")
     process()
+
